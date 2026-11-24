@@ -1,0 +1,32 @@
+---
+- name: Create directory for internal command helpers
+  ansible.builtin.file:
+    path: /usr/local/libexec
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install shared agent terminal helpers
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/libexec/{{ item }}"
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - agent-terminal
+    - agent-session-tmux
+
+- name: Install project command launchers
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - agent-run
+    - codex-agent
+    - agy-agent
+    - claude-agent

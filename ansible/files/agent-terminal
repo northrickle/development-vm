@@ -1,0 +1,54 @@
+#!/bin/bash
+set -euo pipefail
+
+tool=$1
+shift
+case $tool in
+    codex|claude|agy) ;;
+    *) echo 'Unknown agent tool.' >&2; exit 2 ;;
+esac
+launcher="${tool}-agent"
+
+usage() {
+    cat <<HELP
+Usage: $launcher <terminal> [tool arguments...]
+       $launcher list
+       $launcher help | -h | --help
+
+With no arguments, show sessions for the current project and this help.
+list                     List sessions for the current project.
+<terminal>               Start or reconnect to a named terminal.
+
+Examples:
+  $launcher main
+  $launcher review
+
+The same project and terminal name reconnect to the same agent process.
+Two clients using the same name share the screen and keyboard input.
+Tool arguments apply only when creating a session.
+Detach without stopping the tool: Ctrl+b, then d.
+Run launchers outside tmux. Session names 'list' and 'help' are reserved.
+HELP
+}
+
+case ${1:-} in
+    help|-h|--help)
+        usage
+        exit 0
+        ;;
+    '')
+        agent-run /usr/local/libexec/agent-session-tmux "$tool" "$PWD" list
+        printf '\n'
+        usage
+        exit 0
+        ;;
+    list)
+        exec agent-run /usr/local/libexec/agent-session-tmux "$tool" "$PWD" "$@"
+        ;;
+esac
+
+if [[ -n ${TMUX:-} ]]; then
+    echo "Run $launcher outside tmux; detach first with Ctrl+b, then d." >&2
+    exit 2
+fi
+exec agent-run /usr/local/libexec/agent-session-tmux "$tool" "$PWD" "$@"

@@ -1,0 +1,45 @@
+---
+- name: Configure development environment
+  hosts: local
+  become: true
+
+  pre_tasks:
+    - name: Validate required local configuration
+      ansible.builtin.assert:
+        that:
+          - developer_git_name is defined
+          - developer_git_email is defined
+        fail_msg: Configure the Git identity in group_vars/local.yml.
+
+  tasks:
+    - name: Configure system users and shared workspace
+      ansible.builtin.import_tasks: tasks/system.yml
+
+    - name: Configure shared development preferences for both accounts
+      ansible.builtin.include_tasks: tasks/account.yml
+      loop:
+        - developer
+        - agent
+      loop_control:
+        loop_var: development_account
+
+    - name: Install agent launchers and terminal helpers
+      ansible.builtin.import_tasks: tasks/agent.yml
+
+    - name: Install or update latest Node.js 24 LTS for agent
+      ansible.builtin.import_tasks: tasks/node.yml
+
+    - name: Configure Codex for agent
+      ansible.builtin.import_tasks: tasks/codex.yml
+
+    - name: Install Antigravity CLI for agent
+      ansible.builtin.import_tasks: tasks/antigravity.yml
+
+    - name: Install Claude Code for agent
+      ansible.builtin.import_tasks: tasks/claude.yml
+
+    - name: Configure shared agent instructions and skills
+      ansible.builtin.import_tasks: tasks/agent-instructions.yml
+
+    - name: Configure developer SSH agent
+      ansible.builtin.import_tasks: tasks/ssh-agent.yml

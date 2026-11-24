@@ -1,0 +1,19 @@
+---
+- name: Install or update native Codex CLI for agent
+  become_user: agent
+  ansible.builtin.shell: |
+    set -euo pipefail
+    previous_version=$(/home/agent/.local/bin/codex --version 2>/dev/null || true)
+    installer="$(mktemp)"
+    trap 'rm -f "$installer"' EXIT
+    curl -fsSL https://chatgpt.com/codex/install.sh -o "$installer"
+    CODEX_NON_INTERACTIVE=1 CODEX_INSTALL_DIR=/home/agent/.local/bin sh "$installer"
+    installed_version=$(/home/agent/.local/bin/codex --version)
+    if [[ "$previous_version" != "$installed_version" ]]; then
+      echo CODEX_CHANGED
+    fi
+  args:
+    executable: /bin/bash
+    chdir: /home/agent
+  register: codex_install
+  changed_when: "'CODEX_CHANGED' in codex_install.stdout"

@@ -1,0 +1,19 @@
+---
+- name: Check Antigravity CLI installation
+  become_user: agent
+  ansible.builtin.stat:
+    path: /home/agent/.local/bin/agy
+  register: antigravity_check
+
+- name: Install Antigravity CLI for agent
+  become_user: agent
+  ansible.builtin.shell: |
+    set -euo pipefail
+    installer="$(mktemp)"
+    trap 'rm -f "$installer"' EXIT
+    curl -fsSL https://antigravity.google/cli/install.sh -o "$installer"
+    bash "$installer"
+  args:
+    executable: /bin/bash
+    chdir: /home/agent
+  when: not antigravity_check.stat.exists

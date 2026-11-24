@@ -1,0 +1,49 @@
+---
+- name: Create shared and tool-specific instruction directories
+  become_user: agent
+  ansible.builtin.file:
+    path: "/home/agent/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - .agents/skills/writing-documentation
+    - .codex
+    - .claude/skills
+    - .gemini/config/skills
+
+- name: Install shared global instructions
+  become_user: agent
+  ansible.builtin.copy:
+    src: AGENTS.md
+    dest: /home/agent/.agents/AGENTS.md
+    mode: '0644'
+
+- name: Install shared documentation skill
+  become_user: agent
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../skills/writing-documentation/SKILL.md"
+    dest: /home/agent/.agents/skills/writing-documentation/SKILL.md
+    mode: '0644'
+
+- name: Link tool instructions to shared global instructions
+  become_user: agent
+  ansible.builtin.file:
+    src: /home/agent/.agents/AGENTS.md
+    dest: "/home/agent/{{ item }}"
+    state: link
+    force: false
+  loop:
+    - .codex/AGENTS.md
+    - .claude/CLAUDE.md
+    - .gemini/AGENTS.md
+
+- name: Link shared documentation skill into other tools
+  become_user: agent
+  ansible.builtin.file:
+    src: /home/agent/.agents/skills/writing-documentation
+    dest: "/home/agent/{{ item }}/writing-documentation"
+    state: link
+    force: false
+  loop:
+    - .claude/skills
+    - .gemini/config/skills

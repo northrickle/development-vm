@@ -1,0 +1,123 @@
+---
+- name: Install development tools
+  ansible.builtin.apt:
+    name:
+      - git
+      - bash-completion
+      - vim
+      - openssh-client
+      - curl
+      - wget
+      - unzip
+      - ca-certificates
+      - build-essential
+      - acl
+      - tmux
+    state: present
+
+- name: Install browser runtime libraries, fonts and virtual display
+  ansible.builtin.apt:
+    name:
+      - libasound2t64
+      - libatk-bridge2.0-0t64
+      - libatk1.0-0t64
+      - libatspi2.0-0t64
+      - libcairo2
+      - libcups2t64
+      - libdbus-1-3
+      - libdrm2
+      - libgbm1
+      - libglib2.0-0t64
+      - libnspr4
+      - libnss3
+      - libpango-1.0-0
+      - libx11-6
+      - libxcb1
+      - libxcomposite1
+      - libxdamage1
+      - libxext6
+      - libxfixes3
+      - libxkbcommon0
+      - libxrandr2
+      - libfontconfig1
+      - libfreetype6
+      - fonts-liberation
+      - fonts-noto-color-emoji
+      - xvfb
+    state: present
+
+- name: Create agent user
+  ansible.builtin.user:
+    name: agent
+    comment: "Development agent"
+    shell: /bin/bash
+    create_home: true
+    state: present
+
+- name: Create projects group
+  ansible.builtin.group:
+    name: projects
+    state: present
+
+- name: Add developer to projects group
+  ansible.builtin.user:
+    name: developer
+    shell: /bin/bash
+    groups: projects
+    append: true
+
+- name: Restrict agent supplementary groups
+  ansible.builtin.user:
+    name: agent
+    groups: projects
+    append: false
+
+- name: Create shared projects directory
+  ansible.builtin.file:
+    path: /srv/projects
+    state: directory
+    owner: developer
+    group: projects
+    mode: '2770'
+
+- name: Configure access ACL for shared projects
+  ansible.builtin.command:
+    cmd: setfacl -m g:projects:rwx,m::rwx /srv/projects
+  changed_when: false
+
+- name: Configure default ACL for new project files
+  ansible.builtin.command:
+    cmd: setfacl -m d:g:projects:rwx,d:m::rwx /srv/projects
+  changed_when: false
+
+- name: Remove extended and default ACLs from developer home
+  ansible.builtin.command: setfacl -b -k /home/developer
+  changed_when: false
+
+- name: Protect developer home and administrative checkout
+  ansible.builtin.file:
+    path: /home/developer
+    state: directory
+    owner: developer
+    group: developer
+    mode: '0700'
+
+- name: Deny direct SSH login as agent
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-development-agent.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      DenyUsers agent
+  register: agent_ssh_policy
+
+- name: Validate SSH configuration
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
+
+- name: Apply changed SSH policy
+  ansible.builtin.systemd_service:
+    name: ssh.service
+    state: reloaded
+  when: agent_ssh_policy.changed

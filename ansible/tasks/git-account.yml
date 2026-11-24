@@ -1,0 +1,43 @@
+---
+- name: Read managed Git settings
+  become_user: "{{ development_account }}"
+  ansible.builtin.command:
+    chdir: "/home/{{ development_account }}"
+    argv: [git, config, --global, --get, "{{ item.key }}"]
+  loop:
+    - { key: user.name, value: "{{ developer_git_name }}" }
+    - { key: user.email, value: "{{ developer_git_email }}" }
+    - { key: init.defaultBranch, value: main }
+    - { key: core.editor, value: vim }
+    - { key: core.sharedRepository, value: group }
+  register: git_settings_current
+  changed_when: false
+  failed_when: git_settings_current.rc not in [0, 1]
+  no_log: true
+
+- name: Apply changed Git settings
+  become_user: "{{ development_account }}"
+  ansible.builtin.command:
+    chdir: "/home/{{ development_account }}"
+    argv: [git, config, --global, "{{ item.item.key }}", "{{ item.item.value }}"]
+  loop: "{{ git_settings_current.results }}"
+  when: item.rc != 0 or item.stdout != item.item.value
+  changed_when: true
+  no_log: true
+
+- name: Check shared workspace Git ownership exception
+  become_user: "{{ development_account }}"
+  ansible.builtin.command:
+    chdir: "/home/{{ development_account }}"
+    argv: [git, config, --global, --fixed-value, --get-all, safe.directory, '/srv/projects/*']
+  register: shared_git_exception
+  changed_when: false
+  failed_when: shared_git_exception.rc not in [0, 1]
+
+- name: Allow Git operations across shared workspace owners
+  become_user: "{{ development_account }}"
+  ansible.builtin.command:
+    chdir: "/home/{{ development_account }}"
+    argv: [git, config, --global, --add, safe.directory, '/srv/projects/*']
+  when: shared_git_exception.rc == 1
+  changed_when: true

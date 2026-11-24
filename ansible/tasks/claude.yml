@@ -1,0 +1,19 @@
+---
+- name: Check Claude Code installation
+  become_user: agent
+  ansible.builtin.stat:
+    path: /home/agent/.local/bin/claude
+  register: claude_check
+
+- name: Install Claude Code for agent
+  become_user: agent
+  ansible.builtin.shell: |
+    set -euo pipefail
+    installer="$(mktemp)"
+    trap 'rm -f "$installer"' EXIT
+    curl -fsSL https://claude.ai/install.sh -o "$installer"
+    bash "$installer"
+  args:
+    executable: /bin/bash
+    chdir: /home/agent
+  when: not claude_check.stat.exists

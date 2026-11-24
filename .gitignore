@@ -1,0 +1,6 @@
+/ansible/group_vars/local.yml
+__pycache__/
+*.py[cod]
+/.codex/
+/.claude/
+/.gemini/

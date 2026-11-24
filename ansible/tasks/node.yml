@@ -1,0 +1,48 @@
+---
+- name: Resolve latest stable NVM release
+  become: false
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/nvm-sh/nvm/releases/latest
+    return_content: true
+  register: nvm_release
+  changed_when: false
+
+- name: Install or update NVM for agent
+  become_user: agent
+  ansible.builtin.git:
+    repo: https://github.com/nvm-sh/nvm.git
+    dest: /home/agent/.nvm
+    version: "{{ nvm_release.json.tag_name }}"
+    update: true
+    recursive: false
+
+- name: Configure NVM in agent Bash
+  become_user: agent
+  ansible.builtin.blockinfile:
+    path: /home/agent/.bashrc
+    owner: agent
+    group: agent
+    mode: '0644'
+    marker: '# {mark} ANSIBLE MANAGED BLOCK - NVM'
+    block: |
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+- name: Install or update latest Node.js 24 LTS for agent
+  become_user: agent
+  ansible.builtin.shell: |
+    set -e
+    . /home/agent/.nvm/nvm.sh
+    previous_default=$(cat /home/agent/.nvm/alias/default 2>/dev/null || true)
+    previous_node=$(nvm current || true)
+    nvm install 24
+    selected_node=$(nvm current)
+    nvm alias default "$selected_node"
+    if [[ "$previous_node" != "$selected_node" || "$previous_default" != "$selected_node" ]]; then
+      echo NODE_CHANGED
+    fi
+  args:
+    executable: /bin/bash
+    chdir: /home/agent
+  register: node_install
+  changed_when: "'NODE_CHANGED' in node_install.stdout"

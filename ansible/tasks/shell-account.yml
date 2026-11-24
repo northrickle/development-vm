@@ -1,0 +1,76 @@
+---
+- name: Configure shared Bash preferences
+  become_user: "{{ development_account }}"
+  ansible.builtin.blockinfile:
+    path: "/home/{{ development_account }}/.bashrc"
+    owner: "{{ development_account }}"
+    group: "{{ development_account }}"
+    mode: '0644'
+    marker: '# {mark} ANSIBLE MANAGED BLOCK - Git shell conveniences'
+    block: |
+      alias ga='git log --oneline --graph --all'
+
+      # Prompt
+      git_prompt() {
+        local branch dirty
+
+        branch=$(git branch --show-current 2>/dev/null) || return
+        [ -z "$branch" ] && return
+
+        if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+          dirty="*"
+        fi
+
+        printf ' (%s%s)' "$branch" "$dirty"
+      }
+
+      PROMPT_DIRTRIM=2
+
+      export PS1='\[\e[32m\]\u@\h\[\e[0m\]:\[\e[34m\]\w\[\e[0m\]\[\e[33m\]$(git_prompt)\[\e[0m\]\$ '
+
+- name: Configure shared Bash history, editor and completion
+  become_user: "{{ development_account }}"
+  ansible.builtin.blockinfile:
+    path: "/home/{{ development_account }}/.bashrc"
+    owner: "{{ development_account }}"
+    group: "{{ development_account }}"
+    mode: '0644'
+    marker: '# {mark} ANSIBLE MANAGED BLOCK - Bash preferences'
+    block: |
+      export EDITOR=vim
+      export VISUAL=vim
+      set -o vi
+      HISTCONTROL=ignoreboth
+      HISTSIZE=1000
+      HISTFILESIZE=2000
+      shopt -s histappend checkwinsize
+
+      if ! shopt -oq posix; then
+        if [ -f /usr/share/bash-completion/bash_completion ]; then
+          . /usr/share/bash-completion/bash_completion
+        elif [ -f /etc/bash_completion ]; then
+          . /etc/bash_completion
+        fi
+      fi
+
+- name: Initialize Readline configuration with system defaults
+  become_user: "{{ development_account }}"
+  ansible.builtin.copy:
+    dest: "/home/{{ development_account }}/.inputrc"
+    owner: "{{ development_account }}"
+    group: "{{ development_account }}"
+    mode: '0644'
+    force: false
+    content: |
+      $include /etc/inputrc
+
+- name: Configure shared Readline Vi editing mode
+  become_user: "{{ development_account }}"
+  ansible.builtin.blockinfile:
+    path: "/home/{{ development_account }}/.inputrc"
+    owner: "{{ development_account }}"
+    group: "{{ development_account }}"
+    mode: '0644'
+    marker: '# {mark} ANSIBLE MANAGED BLOCK - Readline preferences'
+    block: |
+      set editing-mode vi

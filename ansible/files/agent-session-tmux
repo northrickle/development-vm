@@ -1,0 +1,106 @@
+#!/bin/bash
+set -euo pipefail
+
+tool=$1
+shift
+case $tool in
+    codex|claude|agy) ;;
+    *) echo 'Unknown agent tool.' >&2; exit 2 ;;
+esac
+launcher="${tool}-agent"
+
+project=$(realpath -e -- "$1")
+shift
+# The folder hash separates projects; the terminal name separates their sessions.
+project_hash=$(printf '%s' "$project" | sha256sum | cut -d ' ' -f 1)
+
+if [[ ${1:-} == list ]]; then
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: $launcher list" >&2
+        exit 2
+    fi
+    printf 'Sessions for %s:\n' "$project"
+    found=false
+    while IFS= read -r name; do
+        if [[ $name == "$project_hash-"* ]]; then
+            printf '  %s\n' "${name#"$project_hash-"}"
+            found=true
+        fi
+    done < <(tmux -L "$launcher" -f /dev/null list-sessions -F '#{session_name}' 2>/dev/null || true)
+    if [[ $found == false ]]; then
+        echo '  No active sessions.'
+    fi
+    exit 0
+fi
+
+terminal=main
+if [[ $# -gt 0 && $1 != -* ]]; then
+    terminal=$1
+    shift
+fi
+if [[ ! $terminal =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo 'Terminal name must contain only letters, digits, underscores or hyphens.' >&2
+    exit 2
+fi
+if [[ ! -t 0 || ! -t 1 ]]; then
+    echo "Run $launcher in an interactive terminal." >&2
+    exit 2
+fi
+session="${project_hash}-${terminal}"
+
+# Persist project colors outside the repository. Lock allocation across launchers.
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/codex-agent"
+mkdir -p -- "$state_dir"
+chmod 700 -- "$state_dir"
+exec 9>"$state_dir/colors.lock"
+flock 9
+palette=(24 25 29 30 53 54 60 61 88 89 94 95)
+color_file="$state_dir/$project_hash.color"
+color=
+if [[ -f $color_file ]]; then
+    read -r color < "$color_file" || true
+fi
+if [[ " ${palette[*]} " != *" $color "* || -z $color ]]; then
+    declare -A used=()
+    for saved in "$state_dir/"*.color; do
+        [[ -f $saved ]] || continue
+        read -r assigned < "$saved" || continue
+        [[ -n $assigned ]] && used["$assigned"]=1
+    done
+    available=()
+    for candidate in "${palette[@]}"; do
+        [[ -v used[$candidate] ]] || available+=("$candidate")
+    done
+    # Reuse colors only once every palette entry has been allocated.
+    if [[ ${#available[@]} -eq 0 ]]; then
+        available=("${palette[@]}")
+    fi
+    color=${available[RANDOM % ${#available[@]}]}
+    printf '%s\n' "$color" > "$color_file"
+fi
+exec 9>&-
+
+case $tool in
+    codex)
+        command=(/home/agent/.local/bin/codex --no-daemon --sandbox danger-full-access --ask-for-approval never
+                 -c tui.vim_mode_default=true -C "$project")
+        ;;
+    claude)
+        command=(/home/agent/.local/bin/claude --settings '{"editorMode":"vim"}')
+        ;;
+    agy)
+        command=(/home/agent/.local/bin/agy --settings
+                 '{"editorMode":"vim","vimInsertFirst":false}')
+        ;;
+esac
+
+tmux_project=${project//#/##}
+exec tmux -L "$launcher" -f /dev/null new-session -A -s "$session" -c "$tmux_project" \
+    "${command[@]}" "$@" \; \
+    set-option -g mouse on \; \
+    set-option -t "$session" status-style "bg=colour$color,fg=colour231" \; \
+    set-option -t "$session" status-left " $(basename -- "$project") " \; \
+    set-option -t "$session" status-left-length 80 \; \
+    set-option -t "$session" status-right " $terminal " \; \
+    set-option -t "$session" status-right-length 80 \; \
+    set-option -t "$session" status-format[0] '#[align=left]#{status-left}#[align=right]#{status-right}'

@@ -1,0 +1,22 @@
+---
+- name: Configure shared Vim preferences
+  become_user: "{{ development_account }}"
+  ansible.builtin.blockinfile:
+    path: "/home/{{ development_account }}/.vimrc"
+    create: true
+    owner: "{{ development_account }}"
+    group: "{{ development_account }}"
+    mode: '0644'
+    marker: '" {mark} ANSIBLE MANAGED BLOCK - Vim settings'
+    block: |
+      set list
+      set listchars=space:·,tab:>-,trail:·
+      set expandtab
+      set shiftwidth=2
+      set softtabstop=2
+
+- name: Configure shared Bash preferences
+  ansible.builtin.include_tasks: shell-account.yml
+
+- name: Configure shared Git preferences
+  ansible.builtin.include_tasks: git-account.yml

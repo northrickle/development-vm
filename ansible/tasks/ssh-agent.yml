@@ -1,0 +1,31 @@
+---
+- name: Look up developer account UID
+  ansible.builtin.getent:
+    database: passwd
+    key: developer
+
+- name: Start developer systemd user manager
+  ansible.builtin.systemd_service:
+    name: "user@{{ ansible_facts.getent_passwd['developer'][1] }}.service"
+    state: started
+
+- name: Enable and start SSH agent socket for developer
+  become_user: developer
+  ansible.builtin.systemd_service:
+    name: ssh-agent.socket
+    scope: user
+    enabled: true
+    state: started
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd['developer'][1] }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts.getent_passwd['developer'][1] }}/bus"
+
+- name: Configure SSH agent socket for developer Bash sessions
+  ansible.builtin.blockinfile:
+    path: /home/developer/.bashrc
+    marker: "# {mark} ANSIBLE MANAGED SSH AGENT"
+    block: |
+      export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/openssh_agent"
+    owner: developer
+    group: developer
+    mode: "0644"

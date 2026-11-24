@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+exec sudo -u agent -H -- /bin/bash -c '
+    set -e
+    unset SSH_AUTH_SOCK SSH_AGENT_PID
+    export NVM_DIR="$HOME/.nvm"
+    source "$NVM_DIR/nvm.sh"
+    cd -- "$1"
+    shift
+    if [ "$#" -eq 0 ]; then
+        exec /bin/bash -i
+    fi
+    exec "$@"
+' agent-run "$PWD" "$@"
