@@ -95,7 +95,7 @@ case $tool in
 esac
 
 tmux_project=${project//#/##}
-exec tmux -L "$launcher" -f /dev/null new-session -A -s "$session" -c "$tmux_project" \
+exec tmux -L "$launcher" -f /dev/null -T hyperlinks new-session -A -s "$session" -c "$tmux_project" \
     "${command[@]}" "$@" \; \
     set-option -g mouse on \; \
     set-option -t "$session" status-style "bg=colour$color,fg=colour231" \; \
