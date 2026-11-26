@@ -28,6 +28,7 @@ administer Ubuntu, review changes, commit, push, and deploy.
 |---|---|
 | Create an environment | [Setup](#setup) |
 | Work on a project | [Daily work](#daily-work) |
+| Fix shared file permissions | [Shared project file permissions](#troubleshooting-shared-project-file-permissions) |
 | Configure shared agent rules | [Agent instructions](#agent-instructions) |
 | Update tools or deploy changes | [Maintenance](#maintenance) |
 | Verify a deployment | [VM deployment checklist](docs/vm-deployment-checklist.md) |
@@ -355,6 +356,29 @@ requirements to Ansible tasks.
 
 For host browser access, bind the application to the VM interface. Reachability
 depends on network and firewall settings.
+
+### Troubleshooting: Shared project file permissions
+
+If either account gets `Permission denied`, inspect the affected file:
+
+```bash
+file=path/to/file
+stat -c '%A %U:%G %n' -- "$file"
+getfacl -- "$file"
+```
+
+For a regular, non-executable file meant to be shared, correct the group with
+`sudo chgrp projects -- "$file"` or, if the owner also needs correcting,
+`sudo chown OWNER:projects -- "$file"` with the intended owner. After reviewing
+the existing ACL entries, restore group read and write access:
+
+```bash
+sudo setfacl -m g:projects:rw -- "$file"
+sudo chmod 0660 -- "$file"
+```
+
+If the problem returns, check whether the tool recreates the file with mode
+`0600`. Configure it to create shared outputs with mode `0660`.
 
 ### Publish changes
 
